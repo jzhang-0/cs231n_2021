@@ -74,7 +74,12 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        nrand = np.random.randn
+        dim_list = [input_dim] + hidden_dims + [num_classes]
+        for i in range(self.num_layers): # W1,...W{num_l}
+            self.params[f"W{i+1}"] = weight_scale*nrand(dim_list[i], dim_list[i+1])
+            self.params[f"b{i+1}"] = np.zeros(dim_list[i+1])
+            
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -148,7 +153,16 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        nl = self.num_layers
+        each_layer_out = [X]
+        each_layer_cache = []
+        for i in range(nl - 1):
+            each_out, cache_AffineRelu_i = affine_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"])
+            each_layer_out.append(each_out)
+            each_layer_cache.append(cache_AffineRelu_i)
+        lout = each_out
+
+        scores, cache = affine_forward(lout, self.params[f"W{nl}"], self.params[f"b{nl}"])
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -175,7 +189,25 @@ class FullyConnectedNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        reg_loss = 0
+
+        for i in range(nl):
+            reg_loss += (self.params[f"W{i+1}"]**2).sum()
+
+        reg_item = 0.5 * self.reg * reg_loss
+
+        loss_softmax, dout = softmax_loss(scores, y) # dout:shape = scores.shape i.e. (N, C)
+        loss = loss_softmax + reg_item
+        
+        dh_back_begin, dW, grads[f"b{nl}"] = affine_backward(dout, cache)
+        grads[f"W{nl}"] = dW + self.reg * self.params[f"W{nl}"]
+
+        dh = dh_back_begin
+        for i in reversed(range(nl - 1)):
+            dh, dW, db = affine_relu_backward(dh, each_layer_cache[i])
+            grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
+            grads[f"b{i+1}"] = db 
+
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################

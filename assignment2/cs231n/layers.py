@@ -25,7 +25,10 @@ def affine_forward(x, w, b):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N = x.shape[0]
+    x_vec = x.reshape(N,-1)
+    assert x_vec.shape[1] == w.shape[0]
+    out = x_vec @ w + b[np.newaxis,:]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -57,7 +60,16 @@ def affine_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N = x.shape[0]
+    M = w.shape[1]
+    dim_array = x.shape[1:]
+
+    x_vec = x.reshape(N,-1)
+    w_tilde = w.T.reshape( np.concatenate(([M],dim_array)) )
+
+    dx = np.tensordot(dout , w_tilde, 1) 
+    dw = x_vec.T @ dout
+    db = dout.sum(axis = 0)  
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -82,7 +94,7 @@ def relu_forward(x):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    out = np.maximum(0,x)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -108,7 +120,8 @@ def relu_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    dout[x<0] = 0
+    dx = dout
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -137,7 +150,20 @@ def softmax_loss(x, y):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N = x.shape[0]
+
+    f_mat = x - np.max(x,axis=1)[:,np.newaxis]
+
+    exp_f_mat = np.exp(f_mat)
+    softmax_scores = exp_f_mat / exp_f_mat.sum(1)[:,np.newaxis] 
+
+    loss = -np.log(softmax_scores[range(N),y]).sum()
+
+    softmax_scores[range(N),y] -= 1
+    dx = softmax_scores
+
+    loss /= N
+    dx /= N
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################

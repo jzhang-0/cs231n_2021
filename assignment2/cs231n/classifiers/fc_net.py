@@ -79,7 +79,13 @@ class FullyConnectedNet(object):
         for i in range(self.num_layers): # W1,...W{num_l}
             self.params[f"W{i+1}"] = weight_scale*nrand(dim_list[i], dim_list[i+1])
             self.params[f"b{i+1}"] = np.zeros(dim_list[i+1])
-            
+        
+        if self.normalization:
+            for i in range(self.num_layers - 1): # W1,...W{num_l}
+                self.params[f"gamma{i+1}"] = np.ones(dim_list[i+1])
+                self.params[f"beta{i+1}"] = np.zeros(dim_list[i+1])
+
+
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -156,10 +162,24 @@ class FullyConnectedNet(object):
         nl = self.num_layers
         each_layer_out = [X]
         each_layer_cache = []
-        for i in range(nl - 1):
-            each_out, cache_AffineRelu_i = affine_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"])
-            each_layer_out.append(each_out)
-            each_layer_cache.append(cache_AffineRelu_i)
+        batch_nor = self.normalization == "batchnorm"
+
+        if not batch_nor and not self.use_dropout:
+            for i in range(nl - 1):
+                each_out, cache_AffineRelu_i = affine_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"])
+
+                each_layer_out.append(each_out)
+                each_layer_cache.append(cache_AffineRelu_i)
+
+        elif batch_nor and not self.use_dropout:
+            for i in range(nl - 1):
+                each_out, cache_ANR_i = affine_norm_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"],self.params[f"gamma{i+1}"], self.params[f"beta{i+1}"], self.bn_params[i])
+
+                each_layer_out.append(each_out)
+                each_layer_cache.append(cache_ANR_i)
+
+
+
         lout = each_out
 
         scores, cache = affine_forward(lout, self.params[f"W{nl}"], self.params[f"b{nl}"])
@@ -200,13 +220,24 @@ class FullyConnectedNet(object):
         loss = loss_softmax + reg_item
         
         dh_back_begin, dW, grads[f"b{nl}"] = affine_backward(dout, cache)
+
         grads[f"W{nl}"] = dW + self.reg * self.params[f"W{nl}"]
 
         dh = dh_back_begin
-        for i in reversed(range(nl - 1)):
-            dh, dW, db = affine_relu_backward(dh, each_layer_cache[i])
-            grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
-            grads[f"b{i+1}"] = db 
+
+        if not batch_nor and not self.use_dropout:
+            for i in reversed(range(nl - 1)):
+                dh, dW, db = affine_relu_backward(dh, each_layer_cache[i])
+                grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
+                grads[f"b{i+1}"] = db 
+
+        if batch_nor and not self.use_dropout:
+            for i in reversed(range(nl - 1)):
+                dh, dW, db, dgamma, dbeta = affine_norm_relu_backward(dh, each_layer_cache[i])
+                grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
+                grads[f"b{i+1}"] = db 
+                grads[f"gamma{i+1}"] = dgamma 
+                grads[f"beta{i+1}"] = dbeta 
 
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****

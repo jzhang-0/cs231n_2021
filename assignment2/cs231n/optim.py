@@ -69,7 +69,10 @@ def sgd_momentum(w, dw, config=None):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    mu = config["momentum"]
+    lr = config["learning_rate"]
+    v = mu * v - lr * dw 
+    next_w = w + v
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -107,7 +110,15 @@ def rmsprop(w, dw, config=None):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    decay_r = config["decay_rate"]
+    lr = config["learning_rate"]
+    eps = config["epsilon"]  
+    cache = config["cache"]  
+
+    cache = decay_r * cache + (1 - decay_r) * dw**2
+    next_w = w - lr * dw / (np.sqrt(cache) + eps)
+
+    config["cache"] = cache
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -152,7 +163,19 @@ def adam(w, dw, config=None):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    lr = config["learning_rate"]
+    m = config["m"]  
+    v = config["v"]  
+    beta1 = config["beta1"]  
+    beta2 = config["beta2"]  
+    eps = config["epsilon"]  
+
+    m = beta1*m + (1-beta1)*dw
+    v = beta2*v + (1-beta2)*(dw**2)
+    next_w = w - lr * m / (np.sqrt(v) + eps)
+
+    config["m"] = m 
+    config["v"] = v
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################

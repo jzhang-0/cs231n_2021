@@ -163,17 +163,25 @@ class FullyConnectedNet(object):
         each_layer_out = [X]
         each_layer_cache = []
         batch_nor = self.normalization == "batchnorm"
+        lay_nor =  self.normalization == "layernorm"
 
-        if not batch_nor and not self.use_dropout:
+        if not batch_nor and not lay_nor and not self.use_dropout:
             for i in range(nl - 1):
                 each_out, cache_AffineRelu_i = affine_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"])
 
                 each_layer_out.append(each_out)
                 each_layer_cache.append(cache_AffineRelu_i)
 
-        elif batch_nor and not self.use_dropout:
+        elif batch_nor and not lay_nor and not self.use_dropout:
             for i in range(nl - 1):
                 each_out, cache_ANR_i = affine_norm_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"],self.params[f"gamma{i+1}"], self.params[f"beta{i+1}"], self.bn_params[i])
+
+                each_layer_out.append(each_out)
+                each_layer_cache.append(cache_ANR_i)
+
+        elif not batch_nor and lay_nor and not self.use_dropout:
+            for i in range(nl - 1):
+                each_out, cache_ANR_i = affine_laynorm_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"],self.params[f"gamma{i+1}"], self.params[f"beta{i+1}"], self.bn_params[i])
 
                 each_layer_out.append(each_out)
                 each_layer_cache.append(cache_ANR_i)
@@ -225,15 +233,23 @@ class FullyConnectedNet(object):
 
         dh = dh_back_begin
 
-        if not batch_nor and not self.use_dropout:
+        if not batch_nor and not lay_nor and not self.use_dropout:
             for i in reversed(range(nl - 1)):
                 dh, dW, db = affine_relu_backward(dh, each_layer_cache[i])
                 grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
                 grads[f"b{i+1}"] = db 
 
-        if batch_nor and not self.use_dropout:
+        if batch_nor and not lay_nor and not self.use_dropout:
             for i in reversed(range(nl - 1)):
                 dh, dW, db, dgamma, dbeta = affine_norm_relu_backward(dh, each_layer_cache[i])
+                grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
+                grads[f"b{i+1}"] = db 
+                grads[f"gamma{i+1}"] = dgamma 
+                grads[f"beta{i+1}"] = dbeta 
+
+        if not batch_nor and lay_nor and not self.use_dropout:
+            for i in reversed(range(nl - 1)):
+                dh, dW, db, dgamma, dbeta = affine_laynorm_relu_backward(dh, each_layer_cache[i])
                 grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
                 grads[f"b{i+1}"] = db 
                 grads[f"gamma{i+1}"] = dgamma 

@@ -262,8 +262,6 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         cache["x_centroid"] = x_centroid
         cache["std_sigma"] = std_sigma
 
-        # cache["sigma_sq"] = sample_var
-        # cache["mu"] = sample_mean
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         #######################################################################
@@ -447,7 +445,26 @@ def layernorm_forward(x, gamma, beta, ln_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+
+    cache = {}
+
+    sample_mean = x.mean(axis = 1)
+    sample_var = x.var(axis = 1)
+
+    x_centroid = x - sample_mean[:,np.newaxis]
+
+    std_sigma = np.sqrt(sample_var + eps) 
+
+    norm_x = x_centroid / std_sigma[:,np.newaxis]
+
+    out = norm_x*gamma + beta
+
+    cache["norm_x"] = norm_x 
+    cache["gamma"] = gamma 
+    cache["x_centroid"] = x_centroid
+    cache["std_sigma"] = std_sigma
+
+
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -481,7 +498,23 @@ def layernorm_backward(dout, cache):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    norm_x = cache["norm_x"]
+    gamma = cache["gamma"]
+    x_centroid = cache["x_centroid"]
+    std_sigma = cache["std_sigma"][:,np.newaxis]
+
+    # running_var = cache["running_var"]
+    # eps = cache["eps"]
+
+    dgamma = (dout * norm_x).sum(0)
+    dbeta = dout.sum(0)
+    
+    dx_hat = dout * gamma
+    R1 = dx_hat / std_sigma
+    R2 = -(x_centroid)/std_sigma**3
+    R3 = x_centroid
+
+    dx = R1 - R1.mean(1)[:,np.newaxis] + (dx_hat * R2).mean(1)[:,np.newaxis]*R3
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################

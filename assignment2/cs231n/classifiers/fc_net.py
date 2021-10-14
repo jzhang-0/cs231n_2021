@@ -165,31 +165,70 @@ class FullyConnectedNet(object):
         batch_nor = self.normalization == "batchnorm"
         lay_nor =  self.normalization == "layernorm"
 
-        if not batch_nor and not lay_nor and not self.use_dropout:
-            for i in range(nl - 1):
-                each_out, cache_AffineRelu_i = affine_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"])
+        # if not batch_nor and not lay_nor and not self.use_dropout:
+        #     for i in range(nl - 1):
+        #         each_out, cache_AffineRelu_i = affine_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"])
 
-                each_layer_out.append(each_out)
-                each_layer_cache.append(cache_AffineRelu_i)
+        #         each_layer_out.append(each_out)
+        #         each_layer_cache.append(cache_AffineRelu_i)
 
-        elif batch_nor and not lay_nor and not self.use_dropout:
-            for i in range(nl - 1):
-                each_out, cache_ANR_i = affine_norm_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"],self.params[f"gamma{i+1}"], self.params[f"beta{i+1}"], self.bn_params[i])
+        # elif batch_nor and not lay_nor and not self.use_dropout:
+        #     for i in range(nl - 1):
+        #         each_out, cache_ANR_i = affine_norm_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"],self.params[f"gamma{i+1}"], self.params[f"beta{i+1}"], self.bn_params[i])
 
-                each_layer_out.append(each_out)
-                each_layer_cache.append(cache_ANR_i)
+        #         each_layer_out.append(each_out)
+        #         each_layer_cache.append(cache_ANR_i)
 
-        elif not batch_nor and lay_nor and not self.use_dropout:
-            for i in range(nl - 1):
-                each_out, cache_ANR_i = affine_laynorm_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"],self.params[f"gamma{i+1}"], self.params[f"beta{i+1}"], self.bn_params[i])
+        # elif not batch_nor and lay_nor and not self.use_dropout:
+        #     for i in range(nl - 1):
+        #         each_out, cache_ANR_i = affine_laynorm_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"],self.params[f"gamma{i+1}"], self.params[f"beta{i+1}"], self.bn_params[i])
 
-                each_layer_out.append(each_out)
-                each_layer_cache.append(cache_ANR_i)
+        #         each_layer_out.append(each_out)
+        #         each_layer_cache.append(cache_ANR_i)
 
 
+
+        cache_affine_list = []
+        cache_norm_list = []
+        cache_relu_list = []
+        cache_dropout_list = []
+
+        for i in range(nl - 1):
+            # each_out, cache_ANR_i = affine_norm_relu_forward(each_layer_out[i], self.params[f"W{i+1}"], self.params[f"b{i+1}"],self.params[f"gamma{i+1}"], self.params[f"beta{i+1}"], self.bn_params[i])
+
+            x = each_layer_out[i]
+            w = self.params[f"W{i+1}"]            
+            b = self.params[f"b{i+1}"]
+            each_out, fc_cache = affine_forward(x, w, b)
+            cache_affine_list.append(fc_cache)
+
+            if batch_nor:
+                gamma = self.params[f"gamma{i+1}"]
+                beta = self.params[f"beta{i+1}"]
+                bn_params = self.bn_params[i]
+                each_out, norm_cache = batchnorm_forward(each_out, gamma, beta, bn_params)
+                cache_norm_list.append(norm_cache)
+
+            if lay_nor:
+                gamma = self.params[f"gamma{i+1}"]
+                beta = self.params[f"beta{i+1}"]
+                bn_params = self.bn_params[i]
+                each_out, norm_cache = layernorm_forward(each_out, gamma, beta, bn_params)
+                cache_norm_list.append(norm_cache)
+
+            each_out, relu_cache = relu_forward(each_out)
+            cache_relu_list.append(relu_cache)
+
+            if self.use_dropout:
+                dropout_param = self.dropout_param
+                each_out, dropout_cache = dropout_forward(each_out,dropout_param)
+                cache_dropout_list.append(dropout_cache)
+
+            each_layer_out.append(each_out)
+
+            # each_layer_cache.append(cache_ANR_i)
 
         lout = each_out
-
         scores, cache = affine_forward(lout, self.params[f"W{nl}"], self.params[f"b{nl}"])
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
@@ -231,29 +270,55 @@ class FullyConnectedNet(object):
 
         grads[f"W{nl}"] = dW + self.reg * self.params[f"W{nl}"]
 
-        dh = dh_back_begin
+        # dh = dh_back_begin
 
-        if not batch_nor and not lay_nor and not self.use_dropout:
-            for i in reversed(range(nl - 1)):
-                dh, dW, db = affine_relu_backward(dh, each_layer_cache[i])
-                grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
-                grads[f"b{i+1}"] = db 
+        dout = dh_back_begin
+        for i in reversed(range(nl - 1)):
 
-        if batch_nor and not lay_nor and not self.use_dropout:
-            for i in reversed(range(nl - 1)):
-                dh, dW, db, dgamma, dbeta = affine_norm_relu_backward(dh, each_layer_cache[i])
-                grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
-                grads[f"b{i+1}"] = db 
+            if self.use_dropout:
+                dout = dropout_backward(dout,cache_dropout_list[i])
+
+            dout = relu_backward(dout,cache_relu_list[i])
+
+            if batch_nor:
+                dout,dgamma,dbeta = batchnorm_backward(dout,cache_norm_list[i])
                 grads[f"gamma{i+1}"] = dgamma 
                 grads[f"beta{i+1}"] = dbeta 
 
-        if not batch_nor and lay_nor and not self.use_dropout:
-            for i in reversed(range(nl - 1)):
-                dh, dW, db, dgamma, dbeta = affine_laynorm_relu_backward(dh, each_layer_cache[i])
-                grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
-                grads[f"b{i+1}"] = db 
+            if lay_nor:
+                dout,dgamma,dbeta = layernorm_backward(dout,cache_norm_list[i])
                 grads[f"gamma{i+1}"] = dgamma 
                 grads[f"beta{i+1}"] = dbeta 
+
+            dout,dW,db = affine_backward(dout,cache_affine_list[i])
+            grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
+            grads[f"b{i+1}"] = db 
+
+
+
+
+
+        # if not batch_nor and not lay_nor and not self.use_dropout:
+        #     for i in reversed(range(nl - 1)):
+        #         dh, dW, db = affine_relu_backward(dh, each_layer_cache[i])
+        #         grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
+        #         grads[f"b{i+1}"] = db 
+
+        # if batch_nor and not lay_nor and not self.use_dropout:
+        #     for i in reversed(range(nl - 1)):
+        #         dh, dW, db, dgamma, dbeta = affine_norm_relu_backward(dh, each_layer_cache[i])
+        #         grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
+        #         grads[f"b{i+1}"] = db 
+        #         grads[f"gamma{i+1}"] = dgamma 
+        #         grads[f"beta{i+1}"] = dbeta 
+
+        # if not batch_nor and lay_nor and not self.use_dropout:
+        #     for i in reversed(range(nl - 1)):
+        #         dh, dW, db, dgamma, dbeta = affine_laynorm_relu_backward(dh, each_layer_cache[i])
+        #         grads[f"W{i+1}"] = dW + self.reg * self.params[f"W{i+1}"]
+        #         grads[f"b{i+1}"] = db 
+        #         grads[f"gamma{i+1}"] = dgamma 
+        #         grads[f"beta{i+1}"] = dbeta 
 
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****

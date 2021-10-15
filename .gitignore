@@ -3,3 +3,9 @@ cifar-10-batches-py
 git.sh
 git.ipynb
 __pycache__
+build
+im2col_cython.cpython-38-x86_64-linux-gnu.so
+im2col_cython.c
+
+debug.py
+test.py

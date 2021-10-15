@@ -1,4 +1,5 @@
 from builtins import range
+from matplotlib.pyplot import axis
 import numpy as np
 
 
@@ -622,8 +623,8 @@ def conv_forward_naive(x, w, b, conv_param):
     spans all C channels and has height HH and width WW.
 
     Input:
-    - x: Input data of shape (N, C, H, W)
-    - w: Filter weights of shape (F, C, HH, WW)
+    - x: Input data of shape (N, C, H, W)  # channels一般是3个
+    - w: Filter weights of shape (F, C, HH, WW)  
     - b: Biases, of shape (F,)
     - conv_param: A dictionary with the following keys:
       - 'stride': The number of pixels between adjacent receptive fields in the
@@ -647,7 +648,27 @@ def conv_forward_naive(x, w, b, conv_param):
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    N, C, H, W = x.shape
+    F, C, HH, WW = w.shape
+    pad = conv_param["pad"]
+    stride = conv_param["stride"] 
+    pad_x = np.zeros((N, C, H + 2*pad, W + 2*pad))
+    pad_x[:,:, pad:pad + H,pad:pad + W] = x.copy()
+
+    H_ = 1 + (H + 2 * pad - HH) // stride
+    W_ = 1 + (W + 2 * pad - WW) // stride
+    out = np.zeros((N, F, H_, W_))
+
+    H_begin_index = list(range(0, H + 2*pad - HH + 1, stride))
+    W_begin_index = list(range(0, W + 2*pad - WW + 1, stride))
+
+    for i0,each_filter in enumerate(w) :
+      for ih,hbi in enumerate(H_begin_index):
+        for iw,wbi in enumerate(W_begin_index):
+          sub_px = pad_x[:, :, hbi : hbi + HH, wbi : wbi + WW]
+          out[:,i0,ih,iw] = (each_filter*sub_px).sum(axis=(1,2,3))
+    
+    out += b[np.newaxis, :, np.newaxis, np.newaxis]
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
@@ -674,9 +695,71 @@ def conv_backward_naive(dout, cache):
     # TODO: Implement the convolutional backward pass.                        #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    (x, w, b, conv_param) = cache
 
-    pass
+    N, C, H, W = x.shape
+    F, C, HH, WW = w.shape
 
+    pad = conv_param["pad"]
+    stride = conv_param["stride"] 
+    px = np.pad(x, ((0,0), (0,0), (pad, pad), (pad, pad)))
+
+    H_begin_index = list(range(0, H + 2*pad - HH + 1, stride))
+    W_begin_index = list(range(0, W + 2*pad - WW + 1, stride))
+    H_end_index = list(map(lambda x: x + HH, H_begin_index))
+    W_end_index = list(map(lambda x: x + WW, W_begin_index))
+
+    dx = np.zeros_like(x)
+
+    def find_out(i,j,k):
+        """
+        i,j,k <-> C, H, W
+        """
+        padj = j + pad  # 3
+        padk = k + pad  # 2
+
+        H_index = []
+        filter_hindex_list = []
+        for ih,(ib,ie) in enumerate(zip(H_begin_index,H_end_index)):
+            if ib <= padj < ie:
+                H_index.append(ih)
+                filter_hindex = padj -ib
+                filter_hindex_list.append(filter_hindex)
+
+        W_index = []
+        filter_windex_list = []
+        for iw,(ib,ie) in enumerate(zip(W_begin_index,W_end_index)):
+            if ib <= padk < ie:
+                W_index.append(iw)
+                filter_windex = padk -ib
+                filter_windex_list.append(filter_windex)
+
+
+        aa = np.ix_(H_index, W_index)
+        # index = [...,aa[0],aa[1]]
+        index = aa
+
+        bb = np.ix_(filter_hindex_list, filter_windex_list)
+
+        w_ma = w[:,i,bb[0],bb[1]]
+        return index,w_ma
+
+    for i in range(C):
+      for j in range(H):
+        for k in range(W):
+          index,w_ma = find_out(i,j,k)
+          dx[:,i,j,k] = (dout[:,:,index[0],index[1]]*w_ma).sum(axis=(1,2,3))
+
+    dw = np.zeros_like(w)
+    for kh in range(HH):
+      for kw in range(WW):
+        w_H_index_1d = list(map(lambda x: x+kh,H_begin_index))
+        w_W_index_1d = list(map(lambda x: x+kw,W_begin_index))
+
+        cc = np.ix_(w_H_index_1d, w_W_index_1d)
+        dw[:,:,kh,kw] = np.tensordot(dout, px[:,:,cc[0],cc[1]], axes=([0,2,3],[0,2,3])) 
+
+    db = dout.sum(axis=(0,2,3))
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
@@ -709,14 +792,28 @@ def max_pool_forward_naive(x, pool_param):
     # TODO: Implement the max-pooling forward pass                            #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    N, C, H, W = x.shape
 
-    pass
+    ph = pool_param["pool_height"]
+    pw = pool_param["pool_width"]
+    stride = pool_param["stride"]
+
+    H_begin_index = list(range(0, H  - ph + 1, stride))
+    W_begin_index = list(range(0, W  - pw + 1, stride))
+
+    H_ = 1 + (H - ph) // stride
+    W_ = 1 + (W - pw) // stride
+    out = np.zeros((N, C, H_, W_))
+
+    for i,ih in enumerate(H_begin_index):
+      for j,iw in enumerate(W_begin_index):
+        out[:,:,i,j] = np.max(x[:,:,ih:ih + ph, iw:iw + pw],axis=(2,3))
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
-    cache = (x, pool_param)
+    cache = (x, pool_param, out)
     return out, cache
 
 
@@ -735,8 +832,55 @@ def max_pool_backward_naive(dout, cache):
     # TODO: Implement the max-pooling backward pass                           #
     ###########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    x, pool_param, out = cache
+    N, C, H, W = x.shape
 
-    pass
+    ph = pool_param["pool_height"]
+    pw = pool_param["pool_width"]
+    stride = pool_param["stride"]
+
+    H_begin_index = list(range(0, H  - ph + 1, stride))
+    W_begin_index = list(range(0, W  - pw + 1, stride))
+
+    H_end_index = list(map(lambda x: x + ph, H_begin_index))
+    W_end_index = list(map(lambda x: x + pw, W_begin_index))
+
+
+    def find_out(j,k):
+        """
+        j,k <-> H, W
+        """
+        padj = j 
+        padk = k 
+
+        H_index = []
+        for ih,(ib,ie) in enumerate(zip(H_begin_index,H_end_index)):
+            if ib <= padj < ie:
+                H_index.append(ih)
+
+        W_index = []
+        for iw,(ib,ie) in enumerate(zip(W_begin_index,W_end_index)):
+            if ib <= padk < ie:
+                W_index.append(iw)
+
+
+        index = np.ix_(H_index, W_index)
+
+        return H_index, W_index,index
+
+    dx = np.zeros_like(x) # N C H W
+
+    for i3 in range(H):
+      for i4 in range(W):
+        H_index,W_index,index = find_out(i3, i4)
+
+        score_ma = np.zeros((N,C,len(H_index),len(W_index)))
+        for j1,ih in enumerate(H_index):
+          for j2,iw in enumerate(W_index):
+            score_ma[:,:,j1, j2] = (x[:, :, i3, i4] == out[:,:,ih,iw])
+
+        dx[:,:,i3,i4] = (dout[:,:,index[0],index[1]]*score_ma).sum(axis = (2,3))
+
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ###########################################################################

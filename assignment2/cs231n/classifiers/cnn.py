@@ -63,7 +63,23 @@ class ThreeLayerConvNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        F = num_filters
+        HH = WW = filter_size
+
+        C, H, W = input_dim
+
+        self.params["W1"] = np.random.randn(F,C,HH,WW)*weight_scale
+        self.params["b1"] = np.zeros(F)
+
+        # 卷积后的维度 (N, F, H', W')，默认H' = H,W'=W
+        # pooling后维度 ： 后两维度降低一半维度变成 H/2,W/2
+        self.params["W2"] = np.random.randn(F*H*W//4, hidden_dim)*weight_scale
+        self.params["b2"] = np.zeros(hidden_dim)
+
+        # 仿射层后维度 (N,hd)
+        self.params["W3"] = np.random.randn(hidden_dim, num_classes)*weight_scale
+        self.params["b3"] = np.zeros(num_classes)
+
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -102,7 +118,11 @@ class ThreeLayerConvNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        out1, cache1 = conv_relu_pool_forward(X, W1, b1, conv_param, pool_param)
+
+        out2, cache2 =  affine_relu_forward(out1, W2, b2)
+
+        scores, cache3 = affine_forward(out2, W3, b3)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -125,7 +145,24 @@ class ThreeLayerConvNet(object):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        reg_loss = 0
+
+        for i in range(3):
+            reg_loss += (self.params[f"W{i+1}"]**2).sum()
+
+        reg_item = 0.5 * self.reg * reg_loss
+
+        loss_softmax, dout = softmax_loss(scores, y) # dout:shape = scores.shape i.e. (N, num_class)
+        loss = loss_softmax + reg_item
+        
+        dout3, dW, grads[f"b{3}"] = affine_backward(dout, cache3)
+        grads[f"W{3}"] = dW + self.reg * self.params["W3"]
+
+        dout2, dW, grads[f"b{2}"] = affine_relu_backward(dout3, cache2)
+        grads[f"W{2}"] = dW + self.reg * self.params["W2"]
+
+        dout1, dW, grads[f"b{1}"] = conv_relu_pool_backward(dout2, cache1)
+        grads[f"W{1}"] = dW + self.reg * self.params["W1"]
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
